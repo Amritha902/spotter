@@ -33,11 +33,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.spotter.camera.PoseCamera
+import com.spotter.coach.SpokenCoach
+import com.spotter.coach.Voice
 import com.spotter.core.design.LocalSpotterColors
 import com.spotter.core.design.SpotterTheme
 import com.spotter.core.fold.FoldTracker
 import com.spotter.core.fold.Posture
-import com.spotter.pose.Depth
 import com.spotter.pose.Fault
 import com.spotter.pose.RepCounter
 import com.spotter.pose.SquatForm
@@ -65,8 +66,15 @@ private fun SpotterApp(postures: Flow<Posture>) {
     var surface by remember { mutableStateOf<SurfaceRequest?>(null) }
 
     val counter = remember { RepCounter() }
+    val coach = remember { SpokenCoach() }
+    val voice = remember { Voice(context) }
     val camera = remember { PoseCamera(context) }
-    DisposableEffect(Unit) { onDispose { camera.release() } }
+    DisposableEffect(Unit) {
+        onDispose {
+            camera.release()
+            voice.release()
+        }
+    }
 
     val permission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -83,16 +91,22 @@ private fun SpotterApp(postures: Flow<Posture>) {
             if (body == null) return@start
 
             val verdict = SquatForm.read(body)
+            val now = System.currentTimeMillis()
+
+            // Mid-rep corrections replace the previous one rather than accumulating; standing
+            // still leaves the last callout alone rather than clearing it mid-set.
+            if (verdict.fault != null && counter.stage != RepCounter.Stage.STANDING) {
+                fault = verdict.fault
+                // The screen is unreadable from the bottom of a squat. Speech is the only channel
+                // that reaches someone with their head down, so the voice — not the display — is
+                // the primary output here.
+                coach.liveFault(verdict.fault, now)?.let(voice::say)
+            }
+
             if (counter.accept(verdict)) {
                 reps = counter.reps
                 fault = counter.lastRepFault
-            }
-            // Mid-rep corrections replace the previous one rather than accumulating; standing
-            // still clears the callout so it does not hang over from the last set.
-            when {
-                verdict.depth == Depth.STANDING && counter.stage == RepCounter.Stage.STANDING ->
-                    Unit
-                verdict.fault != null -> fault = verdict.fault
+                coach.repCompleted(counter.reps, counter.lastRepFault, now)?.let(voice::say)
             }
         }
     }
@@ -113,6 +127,7 @@ private fun SpotterApp(postures: Flow<Posture>) {
         posture = posture,
         onNewSet = {
             counter.reset()
+            coach.reset()
             reps = 0
             fault = null
         },
