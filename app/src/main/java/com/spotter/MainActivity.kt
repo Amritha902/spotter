@@ -37,6 +37,7 @@ import com.spotter.coach.SpokenCoach
 import com.spotter.coach.Voice
 import com.spotter.core.design.LocalSpotterColors
 import com.spotter.core.design.SpotterTheme
+import com.spotter.core.fold.Fold
 import com.spotter.core.fold.FoldTracker
 import com.spotter.core.fold.Posture
 import com.spotter.pose.Fault
@@ -47,14 +48,14 @@ import kotlinx.coroutines.flow.Flow
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val postures = FoldTracker(this).postures()
-        setContent { SpotterTheme { SpotterApp(postures) } }
+        val folds = FoldTracker(this).folds()
+        setContent { SpotterTheme { SpotterApp(folds) } }
     }
 }
 
 @Composable
-private fun SpotterApp(postures: Flow<Posture>) {
-    val posture by postures.collectAsStateWithLifecycle(initialValue = Posture.HELD)
+private fun SpotterApp(folds: Flow<Fold>) {
+    val fold by folds.collectAsStateWithLifecycle(initialValue = Fold(Posture.HELD))
     val context = LocalContext.current
     val owner = LocalLifecycleOwner.current
 
@@ -124,7 +125,7 @@ private fun SpotterApp(postures: Flow<Posture>) {
             cameraReady = cameraReady,
             surface = surface,
         ),
-        posture = posture,
+        fold = fold,
         onNewSet = {
             counter.reset()
             coach.reset()

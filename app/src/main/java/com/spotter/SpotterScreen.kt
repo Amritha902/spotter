@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.spotter.core.design.LocalSpotterColors
+import com.spotter.core.fold.Fold
 import com.spotter.core.fold.Posture
 import com.spotter.pose.Fault
 
@@ -51,16 +52,27 @@ data class Coaching(
 @Composable
 fun SpotterScreen(
     coaching: Coaching,
-    posture: Posture,
+    fold: Fold,
     onNewSet: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalSpotterColors.current
 
     Column(modifier.fillMaxSize().background(colors.floor)) {
-        // In Flex Mode the halves are equal because the crease decides where they are. Otherwise
-        // the glance content takes two thirds — it is what someone is actually looking at.
-        val glanceWeight = if (posture == Posture.FLEX) 1f else 2f
+        // In Flex Mode the seam goes where the hardware actually bends, not at a tidy midpoint.
+        // A hinge that is not dead centre — or a window offset by the status bar — would otherwise
+        // put the rep count directly on the crease, bent away from the person reading it.
+        //
+        // Falling back to 0.5 when the fold reports no horizontal crease is the honest default:
+        // it is an even split that claims nothing about the hardware.
+        val glanceWeight = when {
+            fold.posture != Posture.FLEX -> 2f
+            else -> (fold.creaseFraction ?: 0.5f).coerceIn(0.2f, 0.8f)
+        }
+        val restWeight = when {
+            fold.posture != Posture.FLEX -> 1f
+            else -> 1f - glanceWeight
+        }
 
         Box(Modifier.weight(glanceWeight).fillMaxWidth()) {
             coaching.surface?.let { request ->
@@ -77,7 +89,7 @@ fun SpotterScreen(
             }
             GlanceHalf(coaching)
         }
-        Box(Modifier.weight(1f).fillMaxWidth()) { SetupHalf(coaching, onNewSet) }
+        Box(Modifier.weight(restWeight).fillMaxWidth()) { SetupHalf(coaching, onNewSet) }
     }
 }
 
