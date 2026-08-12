@@ -6,10 +6,15 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.SurfaceRequest
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -26,39 +31,40 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.spotter.camera.PoseCamera
+import com.spotter.core.design.LocalSpotterColors
+import com.spotter.core.design.SpotterTheme
+import com.spotter.core.fold.FoldTracker
+import com.spotter.core.fold.Posture
 import com.spotter.pose.Depth
 import com.spotter.pose.Fault
 import com.spotter.pose.RepCounter
 import com.spotter.pose.SquatForm
+import kotlinx.coroutines.flow.Flow
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { MaterialTheme { SpotterApp() } }
+        val postures = FoldTracker(this).postures()
+        setContent { SpotterTheme { SpotterApp(postures) } }
     }
 }
 
-/**
- * The spike screen.
- *
- * Deliberately plain. The open question this project has to answer first is whether pose detection
- * runs on a foldable at a usable frame rate and whether the geometry survives contact with a real
- * body — and none of that is a design problem. Making it beautiful before knowing it works would
- * be building the shopfront before checking the roof.
- */
 @Composable
-private fun SpotterApp() {
+private fun SpotterApp(postures: Flow<Posture>) {
+    val posture by postures.collectAsStateWithLifecycle(initialValue = Posture.HELD)
     val context = LocalContext.current
     val owner = LocalLifecycleOwner.current
 
     var granted by remember { mutableStateOf(false) }
-    var seenPeople by remember { mutableStateOf(0) }
-    var lastSeen by remember { mutableStateOf("waiting for the camera…") }
-    val counter = remember { RepCounter() }
+    var cameraReady by remember { mutableStateOf(false) }
+    var personVisible by remember { mutableStateOf(false) }
     var reps by remember { mutableStateOf(0) }
     var fault by remember { mutableStateOf<Fault?>(null) }
+    var surface by remember { mutableStateOf<SurfaceRequest?>(null) }
 
+    val counter = remember { RepCounter() }
     val camera = remember { PoseCamera(context) }
     DisposableEffect(Unit) { onDispose { camera.release() } }
 
@@ -70,62 +76,78 @@ private fun SpotterApp() {
 
     LaunchedEffect(granted) {
         if (!granted) return@LaunchedEffect
+        cameraReady = true
+        camera.onSurface = { request -> surface = request }
         camera.start(owner) { body ->
-            if (body == null) {
-                lastSeen = "nobody fully in shot"
-                return@start
-            }
-            seenPeople++
+            personVisible = body != null
+            if (body == null) return@start
+
             val verdict = SquatForm.read(body)
-            lastSeen = "knee ${verdict.kneeAngle.toInt()}°  ${verdict.depth}" +
-                if (verdict.isTrustworthy) "" else "  (unclear)"
             if (counter.accept(verdict)) {
                 reps = counter.reps
                 fault = counter.lastRepFault
             }
-            if (verdict.depth != Depth.STANDING) fault = verdict.fault ?: fault
+            // Mid-rep corrections replace the previous one rather than accumulating; standing
+            // still clears the callout so it does not hang over from the last set.
+            when {
+                verdict.depth == Depth.STANDING && counter.stage == RepCounter.Stage.STANDING ->
+                    Unit
+                verdict.fault != null -> fault = verdict.fault
+            }
         }
     }
 
+    if (!granted) {
+        CameraNeeded(onAsk = { permission.launch(Manifest.permission.CAMERA) })
+        return
+    }
+
+    SpotterScreen(
+        coaching = Coaching(
+            reps = reps,
+            fault = fault,
+            personVisible = personVisible,
+            cameraReady = cameraReady,
+            surface = surface,
+        ),
+        posture = posture,
+        onNewSet = {
+            counter.reset()
+            reps = 0
+            fault = null
+        },
+        modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing),
+    )
+}
+
+@Composable
+private fun CameraNeeded(onAsk: () -> Unit) {
+    val colors = LocalSpotterColors.current
     Column(
-        Modifier.fillMaxSize().padding(24.dp),
+        Modifier
+            .fillMaxSize()
+            .background(colors.floor)
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .padding(32.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("Spotter", style = MaterialTheme.typography.headlineMedium)
-
-        if (!granted) {
-            Text("Spotter needs the camera to watch your form.", textAlign = TextAlign.Center)
-            TextButton(onClick = { permission.launch(Manifest.permission.CAMERA) }) {
-                Text("Allow camera")
-            }
-            return@Column
+        Text(
+            text = "Spotter watches your form.",
+            style = MaterialTheme.typography.bodyLarge,
+            color = colors.ink,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            // Said here rather than in a privacy policy nobody opens: it is the question anyone
+            // pointing a camera at themselves in a gym actually has.
+            text = "Everything runs on the phone. No video is recorded or sent anywhere.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = colors.inkMuted,
+            textAlign = TextAlign.Center,
+        )
+        TextButton(onClick = onAsk) {
+            Text("ALLOW CAMERA", style = MaterialTheme.typography.labelLarge, color = colors.good)
         }
-
-        Text("$reps reps", style = MaterialTheme.typography.displaySmall)
-        Text(lastSeen, style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
-        Text("$seenPeople frames with a whole person", style = MaterialTheme.typography.bodySmall)
-
-        fault?.let {
-            Text(
-                text = when (it) {
-                    Fault.KNEES_CAVING -> "Knees out"
-                    Fault.BACK_ROUNDING -> "Chest up"
-                    Fault.TOO_SHALLOW -> "Go deeper"
-                },
-                style = MaterialTheme.typography.headlineSmall,
-            )
-        }
-
-        // A set ends and another begins; without this the count runs on forever and the number
-        // stops meaning anything. Flagged by the reachability check, which noticed RepCounter had
-        // a reset() no screen ever called.
-        TextButton(
-            onClick = {
-                counter.reset()
-                reps = 0
-                fault = null
-            }
-        ) { Text("New set") }
     }
 }

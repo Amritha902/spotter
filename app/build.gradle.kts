@@ -57,6 +57,7 @@ dependencies {
     implementation(libs.camera.camera2)
     implementation(libs.camera.lifecycle)
     implementation(libs.camera.view)
+    implementation(libs.camera.compose)
     implementation(libs.mlkit.pose.detection)
 
     debugImplementation(libs.androidx.ui.tooling)

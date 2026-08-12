@@ -6,6 +6,8 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
+import androidx.camera.core.Preview
+import androidx.camera.core.SurfaceRequest
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
@@ -40,6 +42,16 @@ class PoseCamera(private val context: Context) {
      * [onBody] receives null when nobody is fully in shot, which is a real state the screen needs
      * to show — "stand back so I can see your feet" is the most common thing this app has to say.
      */
+    /**
+     * Set before [start] to also receive a live preview.
+     *
+     * The preview is not decoration. Someone setting a phone on the floor cannot tell whether
+     * their feet are in shot without seeing what the camera sees, and "step back" is the most
+     * common thing this app has to say. Guessing at framing is the difference between a set that
+     * gets coached and a set the app watched half of.
+     */
+    var onSurface: ((SurfaceRequest) -> Unit)? = null
+
     @androidx.annotation.OptIn(ExperimentalGetImage::class)
     fun start(owner: LifecycleOwner, onBody: (Body?) -> Unit) {
         val providerFuture = ProcessCameraProvider.getInstance(context)
@@ -65,9 +77,17 @@ class PoseCamera(private val context: Context) {
                 return@addListener
             }
 
+            val preview = onSurface?.let { sink ->
+                Preview.Builder().build().apply { setSurfaceProvider { request -> sink(request) } }
+            }
+
             runCatching {
                 provider.unbindAll()
-                provider.bindToLifecycle(owner, lens, analysis)
+                if (preview == null) {
+                    provider.bindToLifecycle(owner, lens, analysis)
+                } else {
+                    provider.bindToLifecycle(owner, lens, analysis, preview)
+                }
             }.onFailure { Log.e(TAG, "Could not bind the camera", it) }
         }, ContextCompat.getMainExecutor(context))
     }

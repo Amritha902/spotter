@@ -6,7 +6,9 @@ lifecycle = "2.11.0"
 activityCompose = "1.13.0"
 composeBom = "2026.06.01"
 window = "1.5.1"
-camerax = "1.4.2"
+# All CameraX modules move together — camera-compose only exists from 1.6, and mixing a 1.4
+# core with a 1.6 viewfinder is the sort of thing that resolves fine and crashes at bind time.
+camerax = "1.6.1"
 mlkitPose = "18.0.0-beta5"
 coroutines = "1.10.2"
 junit = "4.13.2"
@@ -33,6 +35,8 @@ camera-core = { group = "androidx.camera", name = "camera-core", version.ref = "
 camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "camerax" }
 camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "camerax" }
 camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "camerax" }
+# Compose-native viewfinder, so the preview is not an AndroidView island in the layout.
+camera-compose = { group = "androidx.camera", name = "camera-compose", version.ref = "camerax" }
 
 # Pose detection, on-device. Bundled rather than Play-delivered: this runs in a gym basement with
 # no signal, and a first-use model download would fail exactly where the app is meant to be used.
