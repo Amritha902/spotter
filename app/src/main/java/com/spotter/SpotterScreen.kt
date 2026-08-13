@@ -69,6 +69,7 @@ fun SpotterScreen(
     fold: Fold,
     onNewSet: () -> Unit,
     onPickExercise: (Exercise) -> Unit,
+    onOpenHistory: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalSpotterColors.current
@@ -107,7 +108,9 @@ fun SpotterScreen(
             }
             GlanceHalf(coaching)
         }
-        Box(Modifier.weight(restWeight).fillMaxWidth()) { SetupHalf(coaching, onNewSet, onPickExercise) }
+        Box(Modifier.weight(restWeight).fillMaxWidth()) {
+            SetupHalf(coaching, onNewSet, onPickExercise, onOpenHistory)
+        }
     }
 }
 
@@ -201,6 +204,7 @@ private fun SetupHalf(
     coaching: Coaching,
     onNewSet: () -> Unit,
     onPickExercise: (Exercise) -> Unit,
+    onOpenHistory: () -> Unit,
 ) {
     val colors = LocalSpotterColors.current
 
@@ -259,8 +263,13 @@ private fun SetupHalf(
             color = colors.inkMuted,
         )
 
-        TextButton(onClick = onNewSet) {
-            Text("NEW SET", style = MaterialTheme.typography.labelLarge, color = colors.ink)
+        Row {
+            TextButton(onClick = onNewSet) {
+                Text("NEW SET", style = MaterialTheme.typography.labelLarge, color = colors.ink)
+            }
+            TextButton(onClick = onOpenHistory) {
+                Text("HISTORY", style = MaterialTheme.typography.labelLarge, color = colors.inkMuted)
+            }
         }
     }
 }

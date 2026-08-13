@@ -1,6 +1,7 @@
 package com.spotter
 
 import android.Manifest
+import android.app.Activity
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -22,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -46,6 +48,11 @@ import com.spotter.pose.RepCounter
 import com.spotter.pose.Exercise
 import com.spotter.pose.PushUp
 import com.spotter.pose.Squat
+import com.spotter.pro.Entitlements
+import com.spotter.pro.HistoryScreen
+import com.spotter.pro.LoggedSet
+import com.spotter.pro.SetLog
+import com.revenuecat.purchases.Package
 import kotlinx.coroutines.flow.Flow
 
 class MainActivity : ComponentActivity() {
@@ -69,6 +76,24 @@ private fun SpotterApp(folds: Flow<Fold>) {
     var fault by remember { mutableStateOf<Fault?>(null) }
     var surface by remember { mutableStateOf<SurfaceRequest?>(null) }
     var seen by remember { mutableStateOf<Seen?>(null) }
+
+    val entitlements = remember { Entitlements.create(context) }
+    val isPro by entitlements.isPro.collectAsStateWithLifecycle()
+    val setLog = remember { SetLog(context) }
+    var showHistory by remember { mutableStateOf(false) }
+    var history by remember { mutableStateOf<List<LoggedSet>>(emptyList()) }
+    var offering by remember { mutableStateOf<Package?>(null) }
+    var billingProblem by remember { mutableStateOf<String?>(null) }
+    // Collected here rather than in RepCounter: the counter's job is the rep, and which faults a
+    // set accumulated is a property of the set. Kept as the list rather than a tally so the log
+    // can say *which* fault dominated, which is the actionable half.
+    val setFaults = remember { mutableStateListOf<Fault>() }
+
+    LaunchedEffect(Unit) {
+        entitlements.offerings { loaded ->
+            offering = loaded?.current?.availablePackages?.firstOrNull()
+        }
+    }
 
     var exercise by remember { mutableStateOf<Exercise>(Squat) }
     // Keyed on the exercise: switching movement mid-session must start a fresh count rather than
@@ -116,6 +141,7 @@ private fun SpotterApp(folds: Flow<Fold>) {
             if (counter.accept(verdict)) {
                 reps = counter.reps
                 fault = counter.lastRepFault
+                counter.lastRepFault?.let(setFaults::add)
                 coach.repCompleted(counter.reps, counter.lastRepFault, now)?.let(voice::say)
             }
         }
@@ -123,6 +149,22 @@ private fun SpotterApp(folds: Flow<Fold>) {
 
     if (!granted) {
         CameraNeeded(onAsk = { permission.launch(Manifest.permission.CAMERA) })
+        return
+    }
+
+    if (showHistory) {
+        HistoryScreen(
+            sets = history,
+            isPro = isPro,
+            offering = offering,
+            problem = billingProblem,
+            onBuy = { pack ->
+                billingProblem = null
+                (context as? Activity)?.let { entitlements.purchase(it, pack) { why -> billingProblem = why } }
+            },
+            onRestore = { entitlements.restore { why -> billingProblem = why } },
+            onBack = { showHistory = false },
+        )
         return
     }
 
@@ -138,18 +180,29 @@ private fun SpotterApp(folds: Flow<Fold>) {
         ),
         fold = fold,
         onNewSet = {
+            // Banked before the counter is cleared — a set the lifter actually did should survive
+            // the button that starts the next one.
+            setLog.record(exercise.name, counter.reps, setFaults.toList())
             counter.reset()
             coach.reset()
             reps = 0
+            setFaults.clear()
             fault = null
         },
         onPickExercise = { picked ->
+            setLog.record(exercise.name, counter.reps, setFaults.toList())
+            setFaults.clear()
             exercise = picked
             // remember(exercise) rebuilds the counter, but the coach and the displayed numbers are
             // ours to clear — carrying a squat's rep count into push-ups would be nonsense.
             coach.reset()
             reps = 0
             fault = null
+        },
+        onOpenHistory = {
+            setLog.record(exercise.name, counter.reps, setFaults.toList())
+            history = setLog.all()
+            showHistory = true
         },
         modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing),
     )

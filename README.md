@@ -51,6 +51,10 @@ gradle :app:installDebug
 **No API keys are needed.** Everything — pose detection, the geometry, the voice — runs on the
 phone. The app asks for camera permission on first launch and does nothing until you grant it.
 
+Billing is optional in exactly the same way. Without a `REVENUECAT_KEY` in `local.properties` the
+app reports "not subscribed" and every coaching feature works regardless; there is no build that
+requires credentials to run.
+
 Minimum Android 11 (API 30). Built for arm64 only, which is every foldable it targets.
 
 ### Tests
@@ -59,7 +63,7 @@ Minimum Android 11 (API 30). Built for arm64 only, which is every foldable it ta
 gradle :app:testDebugUnitTest :app:checkReachable
 ```
 
-56 tests, no device required. See *Why the maths is separate from the camera* below for why that
+74 tests, no device required. See *Why the maths is separate from the camera* below for why that
 number matters.
 
 ---
@@ -87,6 +91,20 @@ shape: an angle that starts high, falls, and rises. `RepCounter` needs only that
 counts both without knowing which it is watching, and a third movement costs nothing there.
 
 Written at the second exercise rather than guessed at the first.
+
+### What is free, and what is not
+
+**Nothing that keeps someone safe is behind a paywall.** Every exercise, the live coaching, the
+spoken corrections and the rep count are free permanently. A knee about to give way is not a
+monetisation opportunity, and a paywall that implied the coaching might stop would make people
+distrust the free version too.
+
+Pro buys the part that only exists over time: your history, and whether your form is actually
+improving. A free user loses insight, not safety, and still sees the set they just finished.
+
+The trend refuses to claim anything from fewer than four sets. Two sets can differ for a hundred
+reasons that are not form, and telling someone they are getting worse on that evidence is both
+likely wrong and actively discouraging.
 
 ### One fault at a time
 

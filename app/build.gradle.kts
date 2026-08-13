@@ -1,7 +1,26 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     // No kotlin.android plugin: AGP 9 has built-in Kotlin support and rejects it.
     alias(libs.plugins.kotlin.compose)
+}
+
+/**
+ * RevenueCat's public key, read from local.properties (gitignored) or the environment.
+ *
+ * Empty is a valid state, not a build failure. Anyone cloning this repo without credentials must
+ * still get a working app — every coaching feature runs regardless, and billing simply reports
+ * "not subscribed".
+ */
+val revenueCatKey: String = run {
+    val local = rootProject.file("local.properties")
+    val fromLocal = if (local.exists()) {
+        Properties().apply { local.inputStream().use(::load) }.getProperty("REVENUECAT_KEY")
+    } else {
+        null
+    }
+    fromLocal ?: System.getenv("REVENUECAT_KEY") ?: ""
 }
 
 android {
@@ -16,6 +35,8 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField("String", "REVENUECAT_KEY", "\"$revenueCatKey\"")
 
         ndk {
             // arm64 only. The pose model ships a native library per ABI, and every foldable this
@@ -33,6 +54,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     compileOptions {
@@ -59,6 +81,7 @@ dependencies {
     implementation(libs.camera.view)
     implementation(libs.camera.compose)
     implementation(libs.mlkit.pose.detection)
+    implementation(libs.revenuecat.purchases)
 
     debugImplementation(libs.androidx.ui.tooling)
 

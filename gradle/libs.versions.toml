@@ -11,6 +11,7 @@ window = "1.5.1"
 camerax = "1.6.1"
 mlkitPose = "18.0.0-beta5"
 coroutines = "1.10.2"
+revenuecat = "10.16.1"
 junit = "4.13.2"
 androidxJunit = "1.2.1"
 espresso = "3.6.1"
@@ -41,6 +42,11 @@ camera-compose = { group = "androidx.camera", name = "camera-compose", version.r
 # Pose detection, on-device. Bundled rather than Play-delivered: this runs in a gym basement with
 # no signal, and a first-use model download would fail exactly where the app is meant to be used.
 mlkit-pose-detection = { group = "com.google.mlkit", name = "pose-detection", version.ref = "mlkitPose" }
+
+# Play Billing only. The Galaxy Store module is deliberately absent: the seller application was
+# rejected 2026-08-12 (individuals cannot sell paid content there), so carrying a Samsung billing
+# path would be dead weight pretending to be a hedge.
+revenuecat-purchases = { group = "com.revenuecat.purchases", name = "purchases", version.ref = "revenuecat" }
 
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
