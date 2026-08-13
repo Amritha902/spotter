@@ -14,15 +14,15 @@ import org.junit.Test
  */
 class RepCounterTest {
 
-    private val counter = RepCounter()
+    private val counter = RepCounter(Squat)
 
     private fun frame(angle: Float, trustworthy: Boolean = true) = Verdict(
         depth = when {
-            angle >= SquatForm.STANDING_KNEE_ANGLE -> Depth.STANDING
-            angle <= SquatForm.DEEP_KNEE_ANGLE -> Depth.DEEP
-            else -> Depth.DESCENDING
+            angle >= Squat.topAngle -> Depth.TOP
+            angle <= Squat.bottomAngle -> Depth.BOTTOM
+            else -> Depth.MOVING
         },
-        kneeAngle = angle,
+        angle = angle,
         fault = null,
         isTrustworthy = trustworthy,
     )
@@ -93,6 +93,6 @@ class RepCounterTest {
         counter.reset()
         assertEquals(0, counter.reps)
         assertNull(counter.lastRepFault)
-        assertEquals(RepCounter.Stage.STANDING, counter.stage)
+        assertEquals(RepCounter.Stage.TOP, counter.stage)
     }
 }

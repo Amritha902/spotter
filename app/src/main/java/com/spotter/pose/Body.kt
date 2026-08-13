@@ -17,7 +17,13 @@ import kotlin.math.hypot
  */
 data class Point(val x: Float, val y: Float, val confidence: Float = 1f)
 
-/** The joints this app needs. A full pose has 33; carrying the rest would be noise. */
+/**
+ * The joints this app needs. A full pose has 33; carrying the rest would be noise.
+ *
+ * Arm joints are nullable because which joints matter depends on the exercise: a squat is judged
+ * from hips, knees and ankles, and demanding visible wrists would refuse to coach a perfectly
+ * framed squat. Each [Exercise] declares what it needs via `canSee`.
+ */
 data class Body(
     val leftHip: Point,
     val rightHip: Point,
@@ -27,19 +33,29 @@ data class Body(
     val rightAnkle: Point,
     val leftShoulder: Point,
     val rightShoulder: Point,
+    val leftElbow: Point? = null,
+    val rightElbow: Point? = null,
+    val leftWrist: Point? = null,
+    val rightWrist: Point? = null,
 ) {
     /**
-     * Whether every joint needed for a verdict was actually seen.
+     * Whether the given joints were actually seen.
      *
      * The threshold is deliberately not near-zero. ML Kit reports a landmark for a joint that is
      * off-frame or occluded, with a low score and a confident-looking position, and coaching
      * someone on a joint the camera never saw is the fastest way to make them stop trusting this.
+     *
+     * A null joint counts as unseen, which is the same thing from the lifter's point of view.
      */
-    val isFullyVisible: Boolean
-        get() = listOf(
+    fun sees(vararg joints: Point?): Boolean =
+        joints.all { it != null && it.confidence >= MIN_CONFIDENCE }
+
+    /** The lower body, which every exercise here needs at least part of. */
+    val seesLowerBody: Boolean
+        get() = sees(
             leftHip, rightHip, leftKnee, rightKnee,
             leftAnkle, rightAnkle, leftShoulder, rightShoulder,
-        ).all { it.confidence >= MIN_CONFIDENCE }
+        )
 
     companion object {
         const val MIN_CONFIDENCE = 0.5f
@@ -94,6 +110,29 @@ object Geometry {
         // Sign relative to the reference side, so "inward" means the same thing for both legs
         // regardless of which way the lifter is facing.
         return if (crossReference < 0) -ratio else ratio
+    }
+
+    /**
+     * How far a point sits above or below the line joining two others, as a fraction of its length.
+     *
+     * Positive means **below** the line in image coordinates, which for a body lying horizontal in
+     * front of a floor-level camera means sagging towards the ground. Vertical rather than
+     * perpendicular offset on purpose: a push-up is judged on whether the hips have dropped, and
+     * "dropped" is a direction the lifter can feel, not a distance normal to some line.
+     */
+    fun verticalDeviationRatio(point: Point, lineStart: Point, lineEnd: Point): Float {
+        val dx = lineEnd.x - lineStart.x
+        val dy = lineEnd.y - lineStart.y
+        val length = hypot(dx, dy)
+        if (length < 1e-6f) return 0f
+
+        // A near-vertical body has no meaningful "sag" to measure — someone standing up is not
+        // doing a push-up, and dividing by dx here would produce a large confident number.
+        if (abs(dx) < 1e-3f) return 0f
+
+        val t = (point.x - lineStart.x) / dx
+        val expectedY = lineStart.y + t * dy
+        return (point.y - expectedY) / length
     }
 
     /** How far from vertical a line is, in degrees. 0 is upright. */

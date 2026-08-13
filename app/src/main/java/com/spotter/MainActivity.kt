@@ -43,7 +43,9 @@ import com.spotter.core.fold.FoldTracker
 import com.spotter.core.fold.Posture
 import com.spotter.pose.Fault
 import com.spotter.pose.RepCounter
-import com.spotter.pose.SquatForm
+import com.spotter.pose.Exercise
+import com.spotter.pose.PushUp
+import com.spotter.pose.Squat
 import kotlinx.coroutines.flow.Flow
 
 class MainActivity : ComponentActivity() {
@@ -68,7 +70,10 @@ private fun SpotterApp(folds: Flow<Fold>) {
     var surface by remember { mutableStateOf<SurfaceRequest?>(null) }
     var seen by remember { mutableStateOf<Seen?>(null) }
 
-    val counter = remember { RepCounter() }
+    var exercise by remember { mutableStateOf<Exercise>(Squat) }
+    // Keyed on the exercise: switching movement mid-session must start a fresh count rather than
+    // carry squat reps into push-ups.
+    val counter = remember(exercise) { RepCounter(exercise) }
     val coach = remember { SpokenCoach() }
     val voice = remember { Voice(context) }
     val camera = remember { PoseCamera(context) }
@@ -95,12 +100,12 @@ private fun SpotterApp(folds: Flow<Fold>) {
             personVisible = body != null
             if (body == null) return@start
 
-            val verdict = SquatForm.read(body)
+            val verdict = exercise.read(body)
             val now = System.currentTimeMillis()
 
             // Mid-rep corrections replace the previous one rather than accumulating; standing
             // still leaves the last callout alone rather than clearing it mid-set.
-            if (verdict.fault != null && counter.stage != RepCounter.Stage.STANDING) {
+            if (verdict.fault != null && counter.stage != RepCounter.Stage.TOP) {
                 fault = verdict.fault
                 // The screen is unreadable from the bottom of a squat. Speech is the only channel
                 // that reaches someone with their head down, so the voice — not the display — is
@@ -129,10 +134,19 @@ private fun SpotterApp(folds: Flow<Fold>) {
             cameraReady = cameraReady,
             surface = surface,
             seen = seen,
+            exercise = exercise,
         ),
         fold = fold,
         onNewSet = {
             counter.reset()
+            coach.reset()
+            reps = 0
+            fault = null
+        },
+        onPickExercise = { picked ->
+            exercise = picked
+            // remember(exercise) rebuilds the counter, but the coach and the displayed numbers are
+            // ours to clear — carrying a squat's rep count into push-ups would be nonsense.
             coach.reset()
             reps = 0
             fault = null

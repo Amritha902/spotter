@@ -34,6 +34,13 @@ object PoseReader {
             rightAnkle = joint(PoseLandmark.RIGHT_ANKLE) ?: return null,
             leftShoulder = joint(PoseLandmark.LEFT_SHOULDER) ?: return null,
             rightShoulder = joint(PoseLandmark.RIGHT_SHOULDER) ?: return null,
+            // Arms are optional rather than required: a squat is judged without them, and
+            // refusing a well-framed squat because a wrist was out of shot would be absurd. The
+            // exercise that needs them says so in its own canSee.
+            leftElbow = joint(PoseLandmark.LEFT_ELBOW),
+            rightElbow = joint(PoseLandmark.RIGHT_ELBOW),
+            leftWrist = joint(PoseLandmark.LEFT_WRIST),
+            rightWrist = joint(PoseLandmark.RIGHT_WRIST),
         )
     }
 }

@@ -12,19 +12,19 @@ package com.spotter.pose
  * cannot judge: "you did not go deep enough" is only true once someone has started coming back up,
  * and that is a fact about the trajectory, not the pose.
  */
-class RepCounter {
+class RepCounter(private val exercise: Exercise) {
 
     /** Where we are in the current rep. */
-    enum class Stage { STANDING, DESCENDING, AT_DEPTH, RISING }
+    enum class Stage { TOP, DESCENDING, AT_DEPTH, RISING }
 
-    var stage: Stage = Stage.STANDING
+    var stage: Stage = Stage.TOP
         private set
 
     var reps: Int = 0
         private set
 
     /**
-     * The lowest knee angle reached in the rep currently underway.
+     * The lowest angle reached in the rep currently underway.
      *
      * Tracked rather than sampled because the bottom of a squat is a single instant that any given
      * frame is likely to miss.
@@ -45,25 +45,25 @@ class RepCounter {
     fun accept(verdict: Verdict): Boolean {
         if (!verdict.isTrustworthy) return false
 
-        val angle = verdict.kneeAngle
+        val angle = verdict.angle
         deepestThisRep = minOf(deepestThisRep, angle)
 
         when (stage) {
-            Stage.STANDING ->
-                if (angle < SquatForm.STANDING_KNEE_ANGLE) stage = Stage.DESCENDING
+            Stage.TOP ->
+                if (angle < exercise.topAngle) stage = Stage.DESCENDING
 
             Stage.DESCENDING -> when {
-                angle <= SquatForm.DEEP_KNEE_ANGLE -> stage = Stage.AT_DEPTH
+                angle <= exercise.bottomAngle -> stage = Stage.AT_DEPTH
                 // Went back up without ever reaching depth. That is a rep in the lifter's head, so
                 // it is counted — and told the truth about.
-                angle >= SquatForm.STANDING_KNEE_ANGLE -> return completeRep(Fault.TOO_SHALLOW)
+                angle >= exercise.topAngle -> return completeRep(Fault.TOO_SHALLOW)
             }
 
             Stage.AT_DEPTH ->
-                if (angle > SquatForm.DEEP_KNEE_ANGLE) stage = Stage.RISING
+                if (angle > exercise.bottomAngle) stage = Stage.RISING
 
             Stage.RISING ->
-                if (angle >= SquatForm.STANDING_KNEE_ANGLE) return completeRep(null)
+                if (angle >= exercise.topAngle) return completeRep(null)
         }
         return false
     }
@@ -71,14 +71,14 @@ class RepCounter {
     private fun completeRep(fault: Fault?): Boolean {
         reps++
         lastRepFault = fault
-        stage = Stage.STANDING
+        stage = Stage.TOP
         deepestThisRep = 180f
         return true
     }
 
     /** Between sets. */
     fun reset() {
-        stage = Stage.STANDING
+        stage = Stage.TOP
         reps = 0
         deepestThisRep = 180f
         lastRepFault = null

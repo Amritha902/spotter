@@ -16,7 +16,7 @@ import org.junit.Test
  *
  * Coordinates are image-space: y grows **downward**, so a hip at y=100 is above a knee at y=200.
  */
-class SquatFormTest {
+class SquatTest {
 
     /**
      * A body seen from the front, standing upright.
@@ -44,8 +44,8 @@ class SquatFormTest {
     @Test
     fun `a straight leg reads as standing`() {
         // Hip, knee and ankle in a vertical line: the knee angle is 180.
-        val verdict = SquatForm.read(body(hipY = 200f))
-        assertEquals(Depth.STANDING, verdict.depth)
+        val verdict = Squat.read(body(hipY = 200f))
+        assertEquals(Depth.TOP, verdict.depth)
         assertNull("nothing to say to someone standing still", verdict.fault)
     }
 
@@ -58,36 +58,36 @@ class SquatFormTest {
             leftAnkle = Point(-50f, 400f), rightAnkle = Point(50f, 400f),
             leftShoulder = Point(-50f, 200f), rightShoulder = Point(50f, 200f),
         )
-        assertEquals(Depth.DEEP, SquatForm.read(deep).depth)
+        assertEquals(Depth.BOTTOM, Squat.read(deep).depth)
     }
 
     @Test
     fun `knees tracking over the feet are not a fault`() {
-        assertFalse(SquatForm.kneesAreCaving(body(kneeInset = 0f)))
+        assertFalse(Squat.kneesAreCaving(body(kneeInset = 0f)))
     }
 
     @Test
     fun `a knee collapsing inward is caught`() {
         // Thigh is ~100px; 30px inward is well past the 12% threshold.
-        assertTrue(SquatForm.kneesAreCaving(body(kneeInset = 30f)))
+        assertTrue(Squat.kneesAreCaving(body(kneeInset = 30f)))
     }
 
     @Test
     fun `a small amount of inward travel is tolerated`() {
         // Some drift is normal. An app that complains about a good squat gets muted, and then it
         // is not there for the rep that actually needed the warning.
-        assertFalse(SquatForm.kneesAreCaving(body(kneeInset = 5f)))
+        assertFalse(Squat.kneesAreCaving(body(kneeInset = 5f)))
     }
 
     @Test
     fun `an upright torso is not rounding`() {
-        assertFalse(SquatForm.backIsRounding(body(shoulderX = 0f, shoulderY = 100f)))
+        assertFalse(Squat.backIsRounding(body(shoulderX = 0f, shoulderY = 100f)))
     }
 
     @Test
     fun `a torso pitched well forward is rounding`() {
         // Shoulders pushed far ahead of the hips and barely above them.
-        assertTrue(SquatForm.backIsRounding(body(shoulderX = 200f, shoulderY = 190f)))
+        assertTrue(Squat.backIsRounding(body(shoulderX = 200f, shoulderY = 190f)))
     }
 
     @Test
@@ -100,14 +100,14 @@ class SquatFormTest {
             leftAnkle = Point(-50f, 400f), rightAnkle = Point(50f, 400f),
             leftShoulder = Point(150f, 270f), rightShoulder = Point(250f, 270f),
         )
-        assertEquals(Fault.KNEES_CAVING, SquatForm.read(both).fault)
+        assertEquals(Fault.KNEES_CAVING, Squat.read(both).fault)
     }
 
     @Test
     fun `a joint the camera did not see produces no verdict at all`() {
         // ML Kit reports plausible-looking coordinates for a joint that is out of frame. Coaching
         // someone on a knee the camera never saw is the fastest way to lose their trust.
-        val verdict = SquatForm.read(body(kneeInset = 40f, confidence = 0.2f))
+        val verdict = Squat.read(body(kneeInset = 40f, confidence = 0.2f))
         assertFalse(verdict.isTrustworthy)
         assertNull("no guess when the body was not clearly seen", verdict.fault)
     }
@@ -127,7 +127,7 @@ class SquatFormTest {
             leftShoulder = Point(near.leftShoulder.x / 2, near.leftShoulder.y / 2),
             rightShoulder = Point(near.rightShoulder.x / 2, near.rightShoulder.y / 2),
         )
-        assertEquals(SquatForm.kneesAreCaving(near), SquatForm.kneesAreCaving(far))
+        assertEquals(Squat.kneesAreCaving(near), Squat.kneesAreCaving(far))
     }
 
     @Test

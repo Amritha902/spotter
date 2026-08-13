@@ -31,9 +31,12 @@ import com.spotter.camera.Seen
 import com.spotter.core.fold.Fold
 import com.spotter.core.fold.Posture
 import com.spotter.pose.BONES
+import com.spotter.pose.Exercise
 import com.spotter.pose.Fault
 import com.spotter.pose.Point
 import com.spotter.pose.Projection
+import com.spotter.pose.PushUp
+import com.spotter.pose.Squat
 import com.spotter.pose.Viewport
 
 /** Everything the screen needs to know, so the layout has no opinions about pose maths. */
@@ -46,6 +49,7 @@ data class Coaching(
     val surface: SurfaceRequest? = null,
     /** The last body seen, and the geometry its coordinates are expressed in. */
     val seen: Seen? = null,
+    val exercise: Exercise = Squat,
 )
 
 /**
@@ -64,6 +68,7 @@ fun SpotterScreen(
     coaching: Coaching,
     fold: Fold,
     onNewSet: () -> Unit,
+    onPickExercise: (Exercise) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalSpotterColors.current
@@ -102,7 +107,7 @@ fun SpotterScreen(
             }
             GlanceHalf(coaching)
         }
-        Box(Modifier.weight(restWeight).fillMaxWidth()) { SetupHalf(coaching, onNewSet) }
+        Box(Modifier.weight(restWeight).fillMaxWidth()) { SetupHalf(coaching, onNewSet, onPickExercise) }
     }
 }
 
@@ -192,13 +197,29 @@ private fun GlanceHalf(coaching: Coaching) {
 
 /** Setup and controls, on the half lying flat. Only touched between sets. */
 @Composable
-private fun SetupHalf(coaching: Coaching, onNewSet: () -> Unit) {
+private fun SetupHalf(
+    coaching: Coaching,
+    onNewSet: () -> Unit,
+    onPickExercise: (Exercise) -> Unit,
+) {
     val colors = LocalSpotterColors.current
 
     Column(
         Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.Bottom),
     ) {
+        Row {
+            listOf(Squat, PushUp).forEach { option ->
+                TextButton(onClick = { onPickExercise(option) }) {
+                    Text(
+                        text = option.name.uppercase(),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (option == coaching.exercise) colors.good else colors.inkMuted,
+                    )
+                }
+            }
+        }
+
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier
@@ -227,7 +248,13 @@ private fun SetupHalf(coaching: Coaching, onNewSet: () -> Unit) {
         }
 
         Text(
-            text = "Stand the phone half-open on the floor, screen towards you.",
+            // Where the phone goes is not the same for both, and getting it wrong means the app
+            // physically cannot see the fault it is looking for: knee cave is invisible from the
+            // side, hip sag is invisible from the front.
+            text = when (coaching.exercise) {
+                PushUp -> "Half-open on the floor beside you, facing your side."
+                else -> "Half-open on the floor in front of you, facing you."
+            },
             style = MaterialTheme.typography.bodyMedium,
             color = colors.inkMuted,
         )
@@ -248,11 +275,22 @@ private fun SetupHalf(coaching: Coaching, onNewSet: () -> Unit) {
 private fun Fault.callout(): String = when (this) {
     Fault.KNEES_CAVING -> "KNEES OUT"
     Fault.BACK_ROUNDING -> "CHEST UP"
+    // Said as the direction to move, not the name of the error. Someone holding a plank position
+    // can act on "hips up"; working out which way to go from "hips sagging" costs a second they
+    // do not have.
+    Fault.HIPS_SAGGING -> "HIPS UP"
+    Fault.HIPS_PIKED -> "HIPS DOWN"
     Fault.TOO_SHALLOW -> "DEEPER"
 }
 
-/** Red is reserved for the fault that injures people. Everything else is amber. */
+/**
+ * Red is reserved for the faults that injure people. Everything else is amber.
+ *
+ * Sagging hips join knee cave in red because both put load somewhere it does not belong — the
+ * lower back in one case, the knee joint in the other. Piking and shallow depth only make the
+ * movement easier, which is a waste of a rep rather than a risk.
+ */
 private fun Fault.colour(danger: Color, caution: Color): Color = when (this) {
-    Fault.KNEES_CAVING -> danger
-    Fault.BACK_ROUNDING, Fault.TOO_SHALLOW -> caution
+    Fault.KNEES_CAVING, Fault.HIPS_SAGGING -> danger
+    Fault.BACK_ROUNDING, Fault.HIPS_PIKED, Fault.TOO_SHALLOW -> caution
 }
