@@ -52,6 +52,7 @@ import com.spotter.pro.Entitlements
 import com.spotter.pro.HistoryScreen
 import com.spotter.pro.LoggedSet
 import com.spotter.pro.SetLog
+import com.spotter.trace.TraceRecorder
 import com.revenuecat.purchases.Package
 import kotlinx.coroutines.flow.Flow
 
@@ -101,6 +102,8 @@ private fun SpotterApp(folds: Flow<Fold>) {
     val counter = remember(exercise) { RepCounter(exercise) }
     val coach = remember { SpokenCoach() }
     val voice = remember { Voice(context) }
+    val recorder = remember { TraceRecorder(context) }
+    var isRecording by remember { mutableStateOf(false) }
     val camera = remember { PoseCamera(context) }
     DisposableEffect(Unit) {
         onDispose {
@@ -125,6 +128,7 @@ private fun SpotterApp(folds: Flow<Fold>) {
             personVisible = body != null
             if (body == null) return@start
 
+            recorder.capture(body)
             val verdict = exercise.read(body)
             val now = System.currentTimeMillis()
 
@@ -177,6 +181,7 @@ private fun SpotterApp(folds: Flow<Fold>) {
             surface = surface,
             seen = seen,
             exercise = exercise,
+            isRecording = isRecording,
         ),
         fold = fold,
         onNewSet = {
@@ -203,6 +208,14 @@ private fun SpotterApp(folds: Flow<Fold>) {
             setLog.record(exercise.name, counter.reps, setFaults.toList())
             history = setLog.all()
             showHistory = true
+        },
+        onToggleRecording = {
+            if (recorder.isRecording) {
+                recorder.stopAndSave("trace-${System.currentTimeMillis()}", exercise.name)
+            } else {
+                recorder.start()
+            }
+            isRecording = recorder.isRecording
         },
         modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing),
     )

@@ -24,12 +24,15 @@ class RepCounter(private val exercise: Exercise) {
         private set
 
     /**
-     * The lowest angle reached in the rep currently underway.
+     * The lowest metric reached in the rep currently underway.
+     *
+     * MAX_VALUE rather than 180 as the reset: the metric is no longer always an angle, so a
+     * degrees-shaped sentinel would be silently wrong for the squat.
      *
      * Tracked rather than sampled because the bottom of a squat is a single instant that any given
      * frame is likely to miss.
      */
-    private var deepestThisRep: Float = 180f
+    private var deepestThisRep: Float = Float.MAX_VALUE
 
     /** What the counter has to say at the end of a rep, if anything. */
     var lastRepFault: Fault? = null
@@ -45,25 +48,25 @@ class RepCounter(private val exercise: Exercise) {
     fun accept(verdict: Verdict): Boolean {
         if (!verdict.isTrustworthy) return false
 
-        val angle = verdict.angle
-        deepestThisRep = minOf(deepestThisRep, angle)
+        val metric = verdict.metric
+        deepestThisRep = minOf(deepestThisRep, metric)
 
         when (stage) {
             Stage.TOP ->
-                if (angle < exercise.topAngle) stage = Stage.DESCENDING
+                if (metric < exercise.topValue) stage = Stage.DESCENDING
 
             Stage.DESCENDING -> when {
-                angle <= exercise.bottomAngle -> stage = Stage.AT_DEPTH
+                metric <= exercise.bottomValue -> stage = Stage.AT_DEPTH
                 // Went back up without ever reaching depth. That is a rep in the lifter's head, so
                 // it is counted — and told the truth about.
-                angle >= exercise.topAngle -> return completeRep(Fault.TOO_SHALLOW)
+                metric >= exercise.topValue -> return completeRep(Fault.TOO_SHALLOW)
             }
 
             Stage.AT_DEPTH ->
-                if (angle > exercise.bottomAngle) stage = Stage.RISING
+                if (metric > exercise.bottomValue) stage = Stage.RISING
 
             Stage.RISING ->
-                if (angle >= exercise.topAngle) return completeRep(null)
+                if (metric >= exercise.topValue) return completeRep(null)
         }
         return false
     }
@@ -72,7 +75,7 @@ class RepCounter(private val exercise: Exercise) {
         reps++
         lastRepFault = fault
         stage = Stage.TOP
-        deepestThisRep = 180f
+        deepestThisRep = Float.MAX_VALUE
         return true
     }
 
@@ -80,7 +83,7 @@ class RepCounter(private val exercise: Exercise) {
     fun reset() {
         stage = Stage.TOP
         reps = 0
-        deepestThisRep = 180f
+        deepestThisRep = Float.MAX_VALUE
         lastRepFault = null
     }
 }

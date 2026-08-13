@@ -50,6 +50,8 @@ data class Coaching(
     /** The last body seen, and the geometry its coordinates are expressed in. */
     val seen: Seen? = null,
     val exercise: Exercise = Squat,
+    /** True while a landmark trace is being captured for desk-side threshold tuning. */
+    val isRecording: Boolean = false,
 )
 
 /**
@@ -70,6 +72,7 @@ fun SpotterScreen(
     onNewSet: () -> Unit,
     onPickExercise: (Exercise) -> Unit,
     onOpenHistory: () -> Unit,
+    onToggleRecording: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalSpotterColors.current
@@ -109,7 +112,7 @@ fun SpotterScreen(
             GlanceHalf(coaching)
         }
         Box(Modifier.weight(restWeight).fillMaxWidth()) {
-            SetupHalf(coaching, onNewSet, onPickExercise, onOpenHistory)
+            SetupHalf(coaching, onNewSet, onPickExercise, onOpenHistory, onToggleRecording)
         }
     }
 }
@@ -205,6 +208,7 @@ private fun SetupHalf(
     onNewSet: () -> Unit,
     onPickExercise: (Exercise) -> Unit,
     onOpenHistory: () -> Unit,
+    onToggleRecording: () -> Unit,
 ) {
     val colors = LocalSpotterColors.current
 
@@ -269,6 +273,15 @@ private fun SetupHalf(
             }
             TextButton(onClick = onOpenHistory) {
                 Text("HISTORY", style = MaterialTheme.typography.labelLarge, color = colors.inkMuted)
+            }
+            // Recording is deliberate and visible. An app that quietly logged every session would
+            // be collecting body-position data nobody asked it to collect.
+            TextButton(onClick = onToggleRecording) {
+                Text(
+                    text = if (coaching.isRecording) "STOP REC" else "RECORD",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = if (coaching.isRecording) colors.danger else colors.inkMuted,
+                )
             }
         }
     }

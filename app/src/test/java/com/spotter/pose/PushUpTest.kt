@@ -133,7 +133,7 @@ class PushUpTest {
     @Test
     fun `a bent arm is not the top of the rep`() {
         val deep = PushUp.read(body(elbowBend = 120f))
-        assertTrue("expected to be past the top, was ${deep.angle}°", deep.angle < PushUp.topAngle)
+        assertTrue("expected to be past the top, was ${deep.metric}°", deep.metric < PushUp.topValue)
     }
 
     @Test
@@ -163,7 +163,7 @@ class PushUpTest {
         val plank = body(elbowBend = 100f)
         assertTrue(
             "push-up angle should follow the elbow, not the knee",
-            PushUp.angle(plank) != Squat.angle(plank),
+            PushUp.metric(plank) != Squat.metric(plank),
         )
     }
 }

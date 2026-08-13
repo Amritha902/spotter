@@ -13,6 +13,7 @@ mlkitPose = "18.0.0-beta5"
 coroutines = "1.10.2"
 revenuecat = "10.16.1"
 junit = "4.13.2"
+json = "20240303"
 androidxJunit = "1.2.1"
 espresso = "3.6.1"
 
@@ -50,6 +51,9 @@ revenuecat-purchases = { group = "com.revenuecat.purchases", name = "purchases",
 
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
+# The real org.json for unit tests. Android ships org.json as a stub that throws
+# "not mocked" on every call, so anything serialising to JSON is untestable on the JVM without it.
+json = { group = "org.json", name = "json", version.ref = "json" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxJunit" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espresso" }
 

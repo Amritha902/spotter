@@ -1,5 +1,6 @@
 package com.spotter.pose
 
+import kotlin.math.abs
 import kotlin.math.min
 
 /**
@@ -30,8 +31,13 @@ enum class Depth { TOP, MOVING, BOTTOM }
 
 data class Verdict(
     val depth: Depth,
-    /** The angle the rep is measured by: knee for a squat, elbow for a push-up. */
-    val angle: Float,
+    /**
+     * The scalar this movement is measured by. Higher means nearer the top of the rep.
+     *
+     * Not always an angle, and that is the point — see [Squat.metric]. Each exercise picks
+     * whatever its camera position can actually see, and the units differ between them.
+     */
+    val metric: Float,
     /** The one thing worth saying right now, or null when the rep looks fine. */
     val fault: Fault?,
     /** False when a joint the verdict depends on was not clearly seen. */
@@ -55,20 +61,28 @@ interface Exercise {
 
     val name: String
 
-    /** Above this angle the lifter is at the top of the rep and there is nothing to correct. */
-    val topAngle: Float
+    /** At or above this the lifter is at the top of the rep and there is nothing to correct. */
+    val topValue: Float
 
-    /** At or below this angle the rep has reached depth. */
-    val bottomAngle: Float
+    /** At or below this the rep has reached depth. */
+    val bottomValue: Float
 
     /** Which joints must be clearly seen before any verdict is given. */
     fun canSee(body: Body): Boolean
 
-    /** The angle this movement is measured by. */
-    fun angle(body: Body): Float
+    /**
+     * How far through the rep the body is, higher meaning nearer the top.
+     *
+     * **Deliberately not "the joint angle".** A squat is filmed head-on, and from there the 2D
+     * knee angle reads 180° whether the lifter is standing or at parallel — the thigh bends
+     * towards the camera, which an image cannot see. Measuring squat depth by knee angle is
+     * therefore not merely imprecise, it is constant. Each exercise picks a quantity its own
+     * camera position can actually observe, and the units differ between them.
+     */
+    fun metric(body: Body): Float
 
     /** The single most important thing wrong, or null. */
-    fun fault(body: Body, angle: Float): Fault?
+    fun fault(body: Body, metric: Float): Fault?
 
     /**
      * Reading one frame.
@@ -78,19 +92,19 @@ interface Exercise {
      * what is wrong.
      */
     fun read(body: Body): Verdict {
-        val angle = angle(body)
+        val metric = metric(body)
         val depth = when {
-            angle >= topAngle -> Depth.TOP
-            angle <= bottomAngle -> Depth.BOTTOM
+            metric >= topValue -> Depth.TOP
+            metric <= bottomValue -> Depth.BOTTOM
             else -> Depth.MOVING
         }
 
         // A joint that was not clearly seen produces confident nonsense, so no verdict is given at
         // all rather than a guess. Silence is a fine thing for a coach to do; being wrong is not.
-        if (!canSee(body)) return Verdict(depth, angle, fault = null, isTrustworthy = false)
+        if (!canSee(body)) return Verdict(depth, metric, fault = null, isTrustworthy = false)
 
-        val fault = if (depth == Depth.TOP) null else fault(body, angle)
-        return Verdict(depth, angle, fault, isTrustworthy = true)
+        val fault = if (depth == Depth.TOP) null else fault(body, metric)
+        return Verdict(depth, metric, fault, isTrustworthy = true)
     }
 }
 
@@ -105,9 +119,17 @@ object Squat : Exercise {
 
     override val name = "Squat"
 
-    /** ~90° is thighs parallel; 100 leaves room for camera angle rather than arguing over degrees. */
-    override val bottomAngle = 100f
-    override val topAngle = 160f
+    /**
+     * Depth in shin-lengths of hip above knee, not degrees.
+     *
+     * Standing puts the hip roughly one shin above the knee; at parallel the hip crease is level
+     * with it, which is 0. The thresholds leave room either side rather than arguing over the
+     * exact instant of parallel.
+     *
+     * Measured this way because it is the only thing a head-on camera can see. See [metric].
+     */
+    override val bottomValue = 0.15f
+    override val topValue = 0.75f
 
     /**
      * How far a knee may drift inward before it is called out, as a fraction of thigh length.
@@ -125,12 +147,33 @@ object Squat : Exercise {
 
     override fun canSee(body: Body) = body.seesLowerBody
 
-    override fun angle(body: Body) = min(
-        Geometry.angleAt(body.leftKnee, body.leftHip, body.leftAnkle),
-        Geometry.angleAt(body.rightKnee, body.rightHip, body.rightAnkle),
-    )
+    /**
+     * How far the hip sits above the knee, measured in shin lengths.
+     *
+     * **Not the knee angle, and that correction matters more than it looks.** Filmed head-on — the
+     * placement this app asks for, because knee cave is invisible from anywhere else — hip, knee
+     * and ankle stay in a near-vertical line at every depth. The thigh bends *towards the camera*,
+     * so the 2D knee angle reads about 180° whether someone is standing or at parallel. Depth
+     * measured that way is not noisy, it is constant, and the rep counter would never see a rep.
+     *
+     * Hip height relative to the knee is the standard coaching definition of depth ("hip crease
+     * below the knee") and is exactly what a head-on view does show. The shin is the ruler because
+     * it is the one segment whose apparent length barely changes through the movement.
+     */
+    override fun metric(body: Body): Float {
+        val hip = midpoint(body.leftHip, body.rightHip)
+        val knee = midpoint(body.leftKnee, body.rightKnee)
+        val ankle = midpoint(body.leftAnkle, body.rightAnkle)
 
-    override fun fault(body: Body, angle: Float): Fault? = when {
+        val shin = ankle.y - knee.y
+        // A shin of no apparent length means the camera is looking straight down the leg, and
+        // nothing about depth can be read from it. "At the top" is the harmless answer.
+        if (abs(shin) < 1e-3f) return topValue
+
+        return (knee.y - hip.y) / shin
+    }
+
+    override fun fault(body: Body, metric: Float): Fault? = when {
         kneesAreCaving(body) -> Fault.KNEES_CAVING
         backIsRounding(body) -> Fault.BACK_ROUNDING
         // Depth is judged at the turnaround, which a single frame cannot see, so RepCounter
@@ -175,9 +218,15 @@ object PushUp : Exercise {
 
     override val name = "Push-up"
 
-    /** Elbow angle at the bottom of a full push-up: upper arm roughly parallel to the floor. */
-    override val bottomAngle = 100f
-    override val topAngle = 155f
+    /**
+     * Elbow angle in degrees — genuinely readable here, unlike the squat's knee.
+     *
+     * A push-up is filmed from the side, and from there the arm bends *across* the image rather
+     * than towards the camera, so the angle is real information. Different units from [Squat] on
+     * purpose: each movement measures what its own viewpoint can see.
+     */
+    override val bottomValue = 100f
+    override val topValue = 155f
 
     /**
      * How far the hips may leave the shoulder-to-ankle line, as a fraction of that line's length.
@@ -204,7 +253,7 @@ object PushUp : Exercise {
      * its landmarks are inferred rather than observed — taking the minimum would let the guessed
      * arm decide the rep. The nearer arm is the one with real evidence behind it.
      */
-    override fun angle(body: Body): Float {
+    override fun metric(body: Body): Float {
         val left = if (body.sees(body.leftElbow, body.leftWrist)) {
             Geometry.angleAt(body.leftElbow!!, body.leftShoulder, body.leftWrist!!)
         } else {
@@ -230,7 +279,7 @@ object PushUp : Exercise {
         }
     }
 
-    override fun fault(body: Body, angle: Float): Fault? {
+    override fun fault(body: Body, metric: Float): Fault? {
         val deviation = hipDeviation(body)
         return when {
             deviation > HIP_SAG_RATIO -> Fault.HIPS_SAGGING

@@ -19,7 +19,7 @@ Everything runs on the device. No video is recorded, and nothing is uploaded.
 | | Squat | Push-up |
 |---|---|---|
 | Phone goes | in front of you | beside you |
-| Measured by | knee angle | elbow angle |
+| Measured by | hip height above the knee | elbow angle |
 | Catches | knees caving, back rounding | hips sagging, hips piking |
 | Also | not deep enough | not deep enough |
 
@@ -63,7 +63,7 @@ Minimum Android 11 (API 30). Built for arm64 only, which is every foldable it ta
 gradle :app:testDebugUnitTest :app:checkReachable
 ```
 
-74 tests, no device required. See *Why the maths is separate from the camera* below for why that
+84 tests, no device required. See *Why the maths is separate from the camera* below for why that
 number matters.
 
 ---
@@ -105,6 +105,23 @@ improving. A free user loses insight, not safety, and still sees the set they ju
 The trend refuses to claim anything from fewer than four sets. Two sets can differ for a hundred
 reasons that are not form, and telling someone they are getting worse on that evidence is both
 likely wrong and actively discouraging.
+
+### Depth is measured by what the camera can see
+
+A squat is filmed head-on, because knee cave is invisible from anywhere else. From there, hip, knee
+and ankle stay in a near-vertical line at every depth — **the thigh bends towards the lens, not
+across it** — so the 2D knee angle reads about 180° whether you are standing or at parallel. Depth
+measured that way is not noisy, it is *constant*, and the rep counter would never see a rep.
+
+So the squat is measured by hip height above the knee, in shin-lengths. That is the standard
+coaching definition of depth ("hip crease below the knee") and it is exactly what a head-on view
+does show. Push-ups keep an elbow angle, because from the side an arm genuinely does bend across
+the image. The two exercises use different units on purpose: each measures what its own viewpoint
+can observe.
+
+This was originally built on knee angle for both, and the tests passed — because the synthetic
+bodies bent in the image plane, which is a side view. The tests were confirming the assumption
+rather than the reality.
 
 ### One fault at a time
 
