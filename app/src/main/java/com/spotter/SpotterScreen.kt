@@ -2,6 +2,7 @@ package com.spotter
 
 import androidx.camera.core.SurfaceRequest
 import androidx.camera.compose.CameraXViewfinder
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,13 +21,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.spotter.core.design.LocalSpotterColors
+import com.spotter.camera.Seen
 import com.spotter.core.fold.Fold
 import com.spotter.core.fold.Posture
+import com.spotter.pose.BONES
 import com.spotter.pose.Fault
+import com.spotter.pose.Point
+import com.spotter.pose.Projection
+import com.spotter.pose.Viewport
 
 /** Everything the screen needs to know, so the layout has no opinions about pose maths. */
 data class Coaching(
@@ -36,6 +44,8 @@ data class Coaching(
     val cameraReady: Boolean,
     /** Non-null once the camera has a surface to draw into. */
     val surface: SurfaceRequest? = null,
+    /** The last body seen, and the geometry its coordinates are expressed in. */
+    val seen: Seen? = null,
 )
 
 /**
@@ -86,10 +96,50 @@ fun SpotterScreen(
                 // the preview is silhouettes — which is all "are my feet in shot" ever needed,
                 // and the number is unambiguous against any scene.
                 Box(Modifier.fillMaxSize().background(colors.floor.copy(alpha = 0.92f)))
+                // Drawn over the scrim, not under it — the whole point of the skeleton is that it
+                // is the one thing in the preview you can actually see.
+                coaching.seen?.let { Skeleton(it) }
             }
             GlanceHalf(coaching)
         }
         Box(Modifier.weight(restWeight).fillMaxWidth()) { SetupHalf(coaching, onNewSet) }
+    }
+}
+
+/**
+ * The detected body, drawn where the body actually is.
+ *
+ * This is the moment someone believes the app: a number counting up could be anything, but a
+ * skeleton that tracks your legs as you move is unambiguous proof it is watching *you*. It doubles
+ * as the fastest possible diagnosis when coaching looks wrong — if the skeleton is off the body,
+ * the geometry was never the problem.
+ */
+@Composable
+private fun Skeleton(seen: Seen) {
+    val colors = LocalSpotterColors.current
+    val body = seen.body ?: return
+
+    Canvas(Modifier.fillMaxSize()) {
+        val view = Viewport(size.width, size.height)
+        fun place(point: Point) = Projection.map(point, seen.frame, view, seen.mirrored)
+            .let { Offset(it.x, it.y) }
+
+        BONES.forEach { (from, to) ->
+            drawLine(
+                color = colors.good,
+                start = place(from(body)),
+                end = place(to(body)),
+                strokeWidth = 6f,
+                cap = StrokeCap.Round,
+            )
+        }
+
+        listOf(
+            body.leftShoulder, body.rightShoulder, body.leftHip, body.rightHip,
+            body.leftKnee, body.rightKnee, body.leftAnkle, body.rightAnkle,
+        ).forEach { joint ->
+            drawCircle(color = colors.ink, radius = 9f, center = place(joint))
+        }
     }
 }
 

@@ -33,6 +33,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.spotter.camera.PoseCamera
+import com.spotter.camera.Seen
 import com.spotter.coach.SpokenCoach
 import com.spotter.coach.Voice
 import com.spotter.core.design.LocalSpotterColors
@@ -65,6 +66,7 @@ private fun SpotterApp(folds: Flow<Fold>) {
     var reps by remember { mutableStateOf(0) }
     var fault by remember { mutableStateOf<Fault?>(null) }
     var surface by remember { mutableStateOf<SurfaceRequest?>(null) }
+    var seen by remember { mutableStateOf<Seen?>(null) }
 
     val counter = remember { RepCounter() }
     val coach = remember { SpokenCoach() }
@@ -87,7 +89,9 @@ private fun SpotterApp(folds: Flow<Fold>) {
         if (!granted) return@LaunchedEffect
         cameraReady = true
         camera.onSurface = { request -> surface = request }
-        camera.start(owner) { body ->
+        camera.start(owner) { frame ->
+            seen = frame
+            val body = frame.body
             personVisible = body != null
             if (body == null) return@start
 
@@ -124,6 +128,7 @@ private fun SpotterApp(folds: Flow<Fold>) {
             personVisible = personVisible,
             cameraReady = cameraReady,
             surface = surface,
+            seen = seen,
         ),
         fold = fold,
         onNewSet = {

@@ -15,7 +15,9 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.pose.PoseDetection
 import com.google.mlkit.vision.pose.defaults.PoseDetectorOptions
 import com.spotter.pose.Body
+import com.spotter.pose.Frame
 import com.spotter.pose.PoseReader
+import com.spotter.pose.Projection
 import java.util.concurrent.Executors
 
 /**
@@ -26,7 +28,18 @@ import java.util.concurrent.Executors
  * barely moved. A squat judged from jittering landmarks produces a verdict that flickers between
  * "good" and "knees caving" several times a second, which is useless to coach from.
  */
+/**
+ * One frame's worth of what the camera saw.
+ *
+ * [frame] and [mirrored] travel with the body because they are what the coordinates mean. A joint
+ * position is meaningless without the frame it was measured in, and passing them separately is how
+ * a skeleton ends up drawn against last frame's geometry.
+ */
+data class Seen(val body: Body?, val frame: Frame, val mirrored: Boolean)
+
 class PoseCamera(private val context: Context) {
+
+    private var usingFrontLens = false
 
     private val analysisExecutor = Executors.newSingleThreadExecutor()
 
@@ -53,7 +66,7 @@ class PoseCamera(private val context: Context) {
     var onSurface: ((SurfaceRequest) -> Unit)? = null
 
     @androidx.annotation.OptIn(ExperimentalGetImage::class)
-    fun start(owner: LifecycleOwner, onBody: (Body?) -> Unit) {
+    fun start(owner: LifecycleOwner, onBody: (Seen) -> Unit) {
         val providerFuture = ProcessCameraProvider.getInstance(context)
 
         providerFuture.addListener({
@@ -76,6 +89,7 @@ class PoseCamera(private val context: Context) {
                 Log.e(TAG, "This device reports no usable camera")
                 return@addListener
             }
+            usingFrontLens = lens == CameraSelector.DEFAULT_FRONT_CAMERA
 
             val preview = onSurface?.let { sink ->
                 Preview.Builder().build().apply { setSurfaceProvider { request -> sink(request) } }
@@ -108,19 +122,24 @@ class PoseCamera(private val context: Context) {
     ).firstOrNull { runCatching { provider.hasCamera(it) }.getOrDefault(false) }
 
     @androidx.annotation.OptIn(ExperimentalGetImage::class)
-    private fun analyse(frame: ImageProxy, onBody: (Body?) -> Unit) {
+    private fun analyse(frame: ImageProxy, onBody: (Seen) -> Unit) {
         val image = frame.image
         if (image == null) {
             frame.close()
             return
         }
 
-        val input = InputImage.fromMediaImage(image, frame.imageInfo.rotationDegrees)
+        val rotation = frame.imageInfo.rotationDegrees
+        // The upright frame, not the raw buffer: ML Kit is handed the rotation and reports
+        // coordinates already turned the right way up.
+        val upright = Projection.uprightFrame(frame.width, frame.height, rotation)
+
+        val input = InputImage.fromMediaImage(image, rotation)
         detector.process(input)
-            .addOnSuccessListener { pose -> onBody(PoseReader.read(pose)) }
+            .addOnSuccessListener { pose -> onBody(Seen(PoseReader.read(pose), upright, usingFrontLens)) }
             .addOnFailureListener { error ->
                 Log.w(TAG, "Pose detection failed on a frame", error)
-                onBody(null)
+                onBody(Seen(null, upright, usingFrontLens))
             }
             // Closing the frame is what allows the next one to arrive. Miss this and the camera
             // delivers exactly one frame and then silently stops, which looks like a frozen app.
