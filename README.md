@@ -1,6 +1,6 @@
 # Spotter
 
-**Put the phone on the floor, half-open. It stands up, watches you squat, and tells you when your knees cave in.**
+**Put the phone on the floor, half-open. It stands up, watches you train, and tells you the one thing to fix — out loud, while you can still fix it.**
 
 A foldable is the only phone that stands on the floor by itself, at an angle you can aim, with no
 tripod and nothing to prop it against. That is the entire reason this app exists on this hardware:
@@ -71,8 +71,9 @@ number matters.
 Verifying "does it correctly spot a knee caving in" by running the app needs a person, a camera, a
 gym, and someone willing to do a bad squat on purpose. That happens once, badly, and never again.
 
-So the judgement never touches an ML Kit type. `SquatForm` and `RepCounter` take plain coordinates
-and are tested exhaustively at a desk with synthetic bodies — including the case that matters most:
+So the judgement never touches an ML Kit type. `Squat`, `PushUp` and `RepCounter` take plain
+coordinates and are tested exhaustively at a desk with synthetic bodies — including the case that
+matters most:
 the same squat filmed from two metres and four metres must give the same verdict, or a lifter who
 steps back from the camera gets told their form improved.
 
@@ -134,12 +135,13 @@ this screen text must never land.
 
 **No real body has ever been in front of this.** Every threshold — `KNEE_CAVE_RATIO`,
 `HIP_SAG_RATIO`, `HIP_PIKE_RATIO` — is a first estimate from coaching norms, verified against
-synthetic coordinates and an emulator containing no people. Whether it fires on a genuinely caving knee, and stays quiet on a good squat,
-needs hardware and a person doing a deliberately bad rep.
+synthetic coordinates and an emulator containing no people. Whether they fire on a genuinely
+caving knee or a genuinely sagging hip — and stay quiet on a good rep — needs hardware and someone
+willing to do a bad one on purpose.
 
-Until then this is a well-tested hypothesis rather than a working coach, and the thresholds are
-collected in one place (`SquatForm`) with comments saying so, because tuning them is the next real
-piece of work.
+Until then this is a well-tested hypothesis rather than a working coach. The thresholds are
+gathered as named constants on each exercise in `Exercise.kt`, with comments saying which are the
+least trustworthy, because tuning them against a real body is the next real piece of work.
 
 
 ## Licence
