@@ -12,9 +12,21 @@ Everything runs on the device. No video is recorded, and nothing is uploaded.
 
 ## What it does
 
-- Counts your reps.
+- Counts your reps — **squats and push-ups**.
 - Tells you the **one** thing wrong with the rep you are in — out loud, while you can still fix it.
 - Scores nothing you cannot check. Every number comes from the coordinates of your own joints.
+
+| | Squat | Push-up |
+|---|---|---|
+| Phone goes | in front of you | beside you |
+| Measured by | knee angle | elbow angle |
+| Catches | knees caving, back rounding | hips sagging, hips piking |
+| Also | not deep enough | not deep enough |
+
+The placement differs because the faults do. **Knee cave is invisible from the side and hip sag is
+invisible from the front** — an app that accepted either angle for either movement would be
+confidently coaching from a viewpoint that cannot see the problem, so it tells you where to put the
+phone.
 
 ## Running it
 
@@ -47,7 +59,7 @@ Minimum Android 11 (API 30). Built for arm64 only, which is every foldable it ta
 gradle :app:testDebugUnitTest :app:checkReachable
 ```
 
-32 tests, no device required. See *Why the maths is separate from the camera* below for why that
+56 tests, no device required. See *Why the maths is separate from the camera* below for why that
 number matters.
 
 ---
@@ -65,6 +77,15 @@ the same squat filmed from two metres and four metres must give the same verdict
 steps back from the camera gets told their form improved.
 
 The camera layer only has to be trusted to deliver coordinates.
+
+### One abstraction, arrived at on the second exercise
+
+Squats and push-ups differ in every particular — the joint that measures the rep, which joints must
+be visible, what counts as a fault, which side of the body the camera sees. But they share one
+shape: an angle that starts high, falls, and rises. `RepCounter` needs only that shape, so it
+counts both without knowing which it is watching, and a third movement costs nothing there.
+
+Written at the second exercise rather than guessed at the first.
 
 ### One fault at a time
 
@@ -111,16 +132,15 @@ this screen text must never land.
 
 ## What is not yet true
 
-**No real body has ever been in front of this.** Every threshold — `KNEE_CAVE_RATIO` in particular
-— is a first estimate from coaching norms, verified against synthetic coordinates and an emulator
-containing no people. Whether it fires on a genuinely caving knee, and stays quiet on a good squat,
+**No real body has ever been in front of this.** Every threshold — `KNEE_CAVE_RATIO`,
+`HIP_SAG_RATIO`, `HIP_PIKE_RATIO` — is a first estimate from coaching norms, verified against
+synthetic coordinates and an emulator containing no people. Whether it fires on a genuinely caving knee, and stays quiet on a good squat,
 needs hardware and a person doing a deliberately bad rep.
 
 Until then this is a well-tested hypothesis rather than a working coach, and the thresholds are
 collected in one place (`SquatForm`) with comments saying so, because tuning them is the next real
 piece of work.
 
-Squats only, so far.
 
 ## Licence
 
