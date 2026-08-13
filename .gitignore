@@ -3,7 +3,9 @@
 /local.properties
 /.idea/
 .DS_Store
-/build
+# Build output. NOT "/build" — that only anchors the root, which lets app/build/ through and
+# quietly commits ~900 generated files including the bundled ML model binaries.
+build/
 /captures
 .externalNativeBuild
 .cxx
