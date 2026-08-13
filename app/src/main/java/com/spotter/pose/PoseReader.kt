@@ -7,7 +7,7 @@ import com.google.mlkit.vision.pose.Pose as MlPose
  * Turning ML Kit's 33-landmark pose into the eight joints this app reasons about.
  *
  * A separate file with a single job, because it is the seam between a third-party model and the
- * geometry that everything else is built on. Keeping the conversion here means [SquatForm] and
+ * geometry that everything else is built on. Keeping the conversion here means [Exercise] and
  * [RepCounter] never see an ML Kit type, and can therefore be tested with plain numbers — which is
  * the only reason this app's judgement is testable at all.
  */
